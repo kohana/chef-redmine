@@ -47,68 +47,14 @@ if node['redmine']['install_rmagick']
 end
 
 #Setup database
-node['redmine']['packages'][adapter].each do |pkg|
-  package pkg
-end
+package 'libmysqlclient-dev'
 case adapter
 when "mysql"
-  include_recipe "mysql::server"
-  include_recipe "database::mysql"
+  include_recipe "mysql::client"
+  include_recipe "mysql::ruby"
 when "postgresql"
   include_recipe "postgresql::server"
   include_recipe "database::postgresql"
-end
-
-case adapter
-when "mysql"
-  connection_info = {
-    :host => "localhost",
-    :username => 'root',
-    :password => node['mysql']['server_root_password'].empty? ? '' : node['mysql']['server_root_password']
-  }
-when "postgresql"
-  connection_info = {
-    :host => "localhost",
-    :username => 'postgres',
-    :password => node['postgresql']['password']['postgres'].empty? ? '' : node['postgresql']['password']['postgres']
-  }
-end
-
-database node["redmine"]["databases"][environment]["database"] do
-  connection connection_info
-  case adapter
-  when "mysql"
-    provider Chef::Provider::Database::Mysql
-  when "postgresql"
-    provider Chef::Provider::Database::Postgresql
-  end
-  action :create
-end
-
-database_user node["redmine"]["databases"][environment]["username"] do
-  connection connection_info
-  password   node["redmine"]["databases"][environment]["password"]
-  case adapter
-  when "mysql"
-    provider Chef::Provider::Database::MysqlUser
-  when "postgresql"
-    provider Chef::Provider::Database::PostgresqlUser
-  end
-  action :create
-end
-
-database_user node["redmine"]["databases"][environment]["username"] do
-  connection    connection_info
-  database_name node["redmine"]["databases"][environment]["database"]
-  password node["redmine"]["databases"][environment]["password"]
-  case adapter
-  when "mysql"
-    provider Chef::Provider::Database::MysqlUser
-  when "postgresql"
-    provider Chef::Provider::Database::PostgresqlUser
-  end
-  privileges [:all]
-  action :grant
 end
 
 #Setup Apache
@@ -180,7 +126,6 @@ deploy_revision node['redmine']['deploy_to'] do
       group node['apache']['group']
       mode "644"
       variables(
-        :host => 'localhost',
         :db   => node['redmine']['databases'][environment],
         :rails_env => environment
       )
@@ -211,8 +156,8 @@ deploy_revision node['redmine']['deploy_to'] do
 
   end
 
-  migrate true
-  migration_command 'rake db:migrate'
+  #migrate true
+  #migration_command 'rake db:migrate'
 
   create_dirs_before_symlink %w{tmp public config tmp/pdf public/plugin_assets}
 

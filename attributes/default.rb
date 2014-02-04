@@ -38,7 +38,7 @@ when "debian","ubuntu"
       libapache2-mod-passenger
     },
     "rmagick" => %w{ libmagickcore-dev libmagickwand-dev librmagick-ruby },
-    "mysql"   => %w{ libmysqlclient-dev },
+    "mysql2"   => %w{ libmysqlclient-dev },
     "postgresql" => %w{ ruby-pg libpq-dev },
     #TODO: SCM packages should be installed only if they are goin to be used
     #NOTE: git will be installed with a recipe because is needed for the deploy resource
