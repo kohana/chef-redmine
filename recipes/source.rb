@@ -103,12 +103,6 @@ deploy_revision node['redmine']['deploy_to'] do
       )
     end
 
-    execute "rbenv local 2.0.0-p353" do
-      cwd release_path
-      owner node['apache']['user']
-      group node['apache']['group']
-    end
-
     execute "bundle install --without development test postgresql sqlite" do
       cwd release_path
     end
