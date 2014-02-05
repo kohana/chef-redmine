@@ -5,6 +5,9 @@
 
   RailsEnv <%= @params[:rails_env] %>
 
+  SetEnv GEM_PATH /usr/local/rbenv/versions/2.0.0-p353/lib/ruby/gems/2.0.0
+  PassengerRuby /usr/local/rbenv/versions/2.0.0-p353/bin/ruby
+
 <%- if @params[:install_method].nil? %>
   RailsBaseURI <%= @params[:docroot] %>
 

@@ -17,22 +17,23 @@
 # limitations under the License.
 #
 
+rbenv_ruby "2.0.0-p353"
+
+rbenv_global "2.0.0-p353"
+
+rbenv_gem "bundler" do
+  rbenv_version   "2.0.0-p353"
+  action          :install
+end
+
 # Some handy vars
 environment = node['redmine']['env']
 adapter = node["redmine"]["databases"][environment]["adapter"]
 
 #Setup system package manager
-case node['platform']
-when "debian","ubuntu"
-  include_recipe "apt"
-when "redhat","centos","amazon","scientific","fedora","suse"
-  include_recipe "yum::epel"
-end
+include_recipe "apt"
 
 #Install redmine required dependencies
-node['redmine']['packages']['ruby'].each do |pkg|
-  package pkg
-end
 node['redmine']['packages']['apache'].each do |pkg|
   package pkg
 end
@@ -72,34 +73,6 @@ web_app "redmine" do
   rails_env      environment
 end
 
-#Install Bundler
-if platform?("debian","ubuntu")
-  if node['platform_version'].to_f < 10.10
-    %w{libopenssl-ruby rake}.each do |package_name|
-      package package_name do
-        action :install
-      end
-    end
-    gem_package "rubygems-update" do
-      action :install
-    end
-    execute "update rubygems" do
-      command '/var/lib/gems/1.8/bin/update_rubygems'
-    end
-    execute "install bundler" do
-      command 'gem install bundler'
-    end
-  else
-    gem_package "bundler" do
-      action :install
-    end
-  end
-else
-  gem_package "bundler" do
-    action :install
-  end
-end
-
 # deploy the Redmine app
 include_recipe "git"
 deploy_revision node['redmine']['deploy_to'] do
@@ -108,7 +81,6 @@ deploy_revision node['redmine']['deploy_to'] do
   user     node['apache']['user']
   group    node['apache']['group']
   environment "RAILS_ENV" => environment
-  #shallow_clone true
 
   before_migrate do
     %w{config log system pids}.each do |dir|
@@ -131,32 +103,24 @@ deploy_revision node['redmine']['deploy_to'] do
       )
     end
 
-    case adapter
-    when "mysql"
-      execute "bundle install --without development test postgresql sqlite" do
-        cwd release_path
-      end
-    when "postgresql"
-      execute "bundle install --without development test mysql sqlite" do
-        cwd release_path
-      end
+    execute "rbenv local 2.0.0-p353" do
+      cwd release_path
+      owner node['apache']['user']
+      group node['apache']['group']
     end
 
-    if Gem::Version.new(node['redmine']['revision']) < Gem::Version.new('2.0.0')
-      execute 'rake generate_session_store' do
-        cwd release_path
-        not_if { ::File.exists?("#{release_path}/db/schema.rb") }
-      end
-    else
-      execute 'rake generate_secret_token' do
-        cwd release_path
-        not_if { ::File.exists?("#{release_path}/config/initializers/secret_token.rb") }
-      end
+    execute "bundle install --without development test postgresql sqlite" do
+      cwd release_path
+    end
+
+    execute 'bundle exec rake generate_secret_token' do
+      cwd release_path
+      not_if { ::File.exists?("#{release_path}/config/initializers/secret_token.rb") }
     end
 
   end
 
-  #migrate true
+  migrate false
   #migration_command 'rake db:migrate'
 
   create_dirs_before_symlink %w{tmp public config tmp/pdf public/plugin_assets}
