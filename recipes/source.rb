@@ -17,15 +17,6 @@
 # limitations under the License.
 #
 
-rbenv_ruby "2.0.0-p353"
-
-rbenv_global "2.0.0-p353"
-
-rbenv_gem "bundler" do
-  rbenv_version   "2.0.0-p353"
-  action          :install
-end
-
 # Some handy vars
 environment = node['redmine']['env']
 adapter = node["redmine"]["databases"][environment]["adapter"]
@@ -34,9 +25,6 @@ adapter = node["redmine"]["databases"][environment]["adapter"]
 include_recipe "apt"
 
 #Install redmine required dependencies
-node['redmine']['packages']['apache'].each do |pkg|
-  package pkg
-end
 node['redmine']['packages']['scm'].each do |pkg|
   package pkg
 end
@@ -58,35 +46,21 @@ when "postgresql"
   include_recipe "database::postgresql"
 end
 
-#Setup Apache
-include_recipe "apache2"
-apache_site "000-default" do
-  enable false
-  notifies :restart, "service[apache2]"
-end
-
-web_app "redmine" do
-  docroot        ::File.join(node['redmine']['path'], 'public')
-  template       "redmine.conf.erb"
-  server_name    "redmine.#{node['domain']}"
-  server_aliases [ "redmine", node['hostname'] ]
-  rails_env      environment
-end
-
 # deploy the Redmine app
 include_recipe "git"
+
 deploy_revision node['redmine']['deploy_to'] do
   repo     node['redmine']['repo']
   revision node['redmine']['revision']
-  user     node['apache']['user']
-  group    node['apache']['group']
+  user     'www-data'
+  group    'www-data'
   environment "RAILS_ENV" => environment
 
   before_migrate do
     %w{config log system pids}.each do |dir|
       directory "#{node['redmine']['deploy_to']}/shared/#{dir}" do
-        owner node['apache']['user']
-        group node['apache']['group']
+        owner 'www-data'
+        group 'www-data'
         mode '0755'
         recursive true
       end
@@ -94,8 +68,8 @@ deploy_revision node['redmine']['deploy_to'] do
 
     template "#{node['redmine']['deploy_to']}/shared/config/database.yml" do
       source "database.yml.erb"
-      owner node['apache']['user']
-      group node['apache']['group']
+      owner 'www-data'
+      group 'www-data'
       mode "644"
       variables(
         :db   => node['redmine']['databases'][environment],
@@ -126,5 +100,20 @@ deploy_revision node['redmine']['deploy_to'] do
   end
 
   action :deploy
-  notifies :restart, "service[apache2]"
+end
+
+unicorn_ng_config '/opt/redmine/shared/config/unicorn.rb' do
+  worker_processes  6
+
+  user 'www-data'
+  working_directory '/opt/redmine/current'
+  listen '80'
+end
+
+unicorn_ng_service '/opt/redmine/current' do
+  wrapper       '/usr/local/bin/chruby-exec'
+  wrapper_opts  '2.0.0-p353 --'
+  bundle        'bundle'
+  environment   'production'
+  user          'www-data'
 end
